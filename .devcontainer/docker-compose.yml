@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ../..:/workspaces:cached
+    command: sleep infinity
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - RABBIT__HOST=rabbitmq
+      - RABBIT__PORT=5672
+      - RABBIT__USER=user
+      - RABBIT__PASS=password
+
+  # rabbitmq service with management plugin
+  rabbitmq:
+    image: rabbitmq:4-management
+    ports:
+      - "3001:5672"  # amqp
+      - "3002:15672" # management plugin
+    environment:
+      RABBITMQ_DEFAULT_USER: user
+      RABBITMQ_DEFAULT_PASS: password
