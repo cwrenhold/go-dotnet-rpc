@@ -1,34 +1,11 @@
+using System.Text.Json;
 using DotNetApi;
-using MassTransit;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
-
-builder.Services.AddMassTransit(x =>
-{
-    x.SetRabbitMqReplyToRequestClientFactory();
-
-    x.AddRequestClient<TestRequest>(RequestTimeout.After(s: 5));
-
-    x.UsingRabbitMq((context, cfg) =>
-    {
-        var hostname = builder.Configuration["Rabbit:Host"] ?? "localhost";
-        var port = builder.Configuration["Rabbit:Port"] ?? "5672";
-        var username = builder.Configuration["Rabbit:User"] ?? "guest";
-        var password = builder.Configuration["Rabbit:Pass"] ?? "guest";
-
-        cfg.Host($"{hostname}", "/", h =>
-        {
-            h.Username(username);
-            h.Password(password);
-        });
-
-        cfg.ConfigureEndpoints(context);
-    });
-});
 
 var app = builder.Build();
 
@@ -40,15 +17,22 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.MapGet("/test", async (IRequestClient<TestRequest> client) =>
+app.MapGet("/test", async (IConfiguration configuration) =>
 {
     try
     {
-        var response = await client.GetResponse<TestResponse>(new TestRequest(DateTime.UtcNow));
+        var client = new RpcClient(configuration);
+        await client.StartAsync();
 
-        return Results.Ok(response.Message);
+        var request = new TestRequest(DateTime.UtcNow);
+
+        var response = await client.CallAsync(JsonSerializer.Serialize(request));
+
+        var result = JsonSerializer.Deserialize<TestResponse>(response);
+
+        return Results.Ok(result);
     }
-    catch (RequestTimeoutException)
+    catch (Exception)
     {
         return Results.BadRequest("Request timed out");
     }
